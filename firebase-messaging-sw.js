@@ -13,21 +13,30 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Handler pentru mesaje în background
+// Citește titlul și body din data payload (nu din notification)
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Background message primit:', payload);
-  const { title, body } = payload.notification || {};
-  self.registration.showNotification(title || 'MTC Transport', {
-    body: body || '',
+  console.log('[SW] Background message primit:', JSON.stringify(payload));
+
+  // Citește din notification (iOS/webpush) sau din data (Android data-only)
+  const title = payload.notification?.title || payload.data?.title || 'MTC Transport';
+  const body = payload.notification?.body || payload.data?.body || '';
+
+  console.log('[SW] Afișez notificare:', title, body);
+
+  self.registration.showNotification(title, {
+    body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
     tag: 'mtc-' + (payload.data?.type || Date.now()),
-    data: payload.data,
+    data: payload.data || {},
     requireInteraction: true,
     vibrate: [200, 100, 200]
   });
 });
 
 self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notificare apăsată:', event.notification.tag);
   event.notification.close();
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
@@ -41,4 +50,4 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-console.log('[SW] firebase-messaging-sw.js activ la rădăcina domeniului ✓');
+console.log('[SW] firebase-messaging-sw.js v2 activ ✓');
