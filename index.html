@@ -2743,11 +2743,20 @@ async function initNotifications(){
     console.log('[NOTIF] Înregistrez SW...');
     let swReg;
     try {
-      swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      // Înregistrează și așteaptă activarea completă
+      swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+      // Așteaptă să devină activ
+      if(swReg.installing) {
+        await new Promise(resolve => {
+          swReg.installing.addEventListener('statechange', e => {
+            if(e.target.state === 'activated') resolve();
+          });
+        });
+      }
       await navigator.serviceWorker.ready;
-      console.log('[NOTIF] SW înregistrat:', swReg.scope);
+      console.log('[NOTIF] SW înregistrat și activ:', swReg.scope, swReg.active?.state);
     } catch(swErr) {
-      console.log('[NOTIF] SW register fail, folosesc ready:', swErr.message);
+      console.log('[NOTIF] SW register fail:', swErr.message);
       swReg = await navigator.serviceWorker.ready;
     }
 
@@ -3428,9 +3437,24 @@ async function doActivateNotif(){
       return;
     }
     let swReg;
-    try { swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js'); await navigator.serviceWorker.ready; }
-    catch(e) { swReg = await navigator.serviceWorker.ready; }
-    box.innerHTML = `✓ SW: ${swReg.scope}<br>⏳ Obțin token FCM...`;
+    try {
+      swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+      if(swReg.installing){
+        await new Promise(resolve => {
+          swReg.installing.addEventListener('statechange', e => { if(e.target.state==='activated') resolve(); });
+          setTimeout(resolve, 3000);
+        });
+      }
+      await navigator.serviceWorker.ready;
+    } catch(e) {
+      const allSW = await navigator.serviceWorker.getRegistrations();
+      const info = allSW.map(r=>`${r.scope}→${r.active?.scriptURL?.split('/').pop()||'?'}`).join(', ');
+      box.innerHTML = `⚠ SW fail: ${e.message}<br>Existente: ${info}<br>⏳ Încerc cu SW existent...`;
+      swReg = await navigator.serviceWorker.ready;
+    }
+    const swScriptUrl = swReg.active?.scriptURL || '?';
+    const isFCMsw = swScriptUrl.includes('firebase-messaging-sw');
+    box.innerHTML = `${isFCMsw?'✓':'⚠'} SW: ${swScriptUrl.split('/').pop()}<br>Scope: ${swReg.scope}<br>State: ${swReg.active?.state||'?'}<br>${!isFCMsw?'⚠ SW GREȘIT — FCM nu va funcționa!<br>':''}<br>⏳ Obțin token FCM...`;
     const token = await window.fbGetToken(window.fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if(!token){ box.innerHTML='✗ Token null — încearcă din Safari sau reinstalează PWA'; return; }
     const existing = knownUsers.find(u=>u.username===currentUser.username);
