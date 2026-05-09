@@ -1,12 +1,62 @@
-const CACHE = 'flota-v5';
-const ASSETS = ['./', './index.html', './manifest.json', './config.js', './firebase-messaging-sw.js'];
+// Service Worker unificat — cache + Firebase Messaging
+// MTC Transport v6
+
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
+
+// ── FIREBASE MESSAGING ────────────────────────────────────────
+firebase.initializeApp({
+  apiKey: "AIzaSyA1O2Lw3unTXECgCtp2bdYuHjgfVqPEW6U",
+  authDomain: "flota-firma.firebaseapp.com",
+  projectId: "flota-firma",
+  storageBucket: "flota-firma.firebasestorage.app",
+  messagingSenderId: "281579444434",
+  appId: "1:281579444434:web:facb358aa0434a2c00b50b"
+});
+
+const messaging = firebase.messaging();
+
+messaging.onBackgroundMessage((payload) => {
+  console.log('[SW] Background FCM message:', JSON.stringify(payload));
+  const title = payload.notification?.title || payload.data?.title || 'MTC Transport';
+  const body = payload.notification?.body || payload.data?.body || '';
+  self.registration.showNotification(title, {
+    body,
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: 'mtc-' + Date.now(),
+    data: payload.data || {},
+    requireInteraction: true,
+    vibrate: [200, 100, 200]
+  });
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes('mtctransportgmbh.github.io') && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      return clients.openWindow('https://mtctransportgmbh.github.io');
+    })
+  );
+});
+
+// ── CACHE (PWA offline) ───────────────────────────────────────
+const CACHE = 'flota-v6';
+const ASSETS = ['./', './index.html', './manifest.json', './config.js'];
 
 self.addEventListener('install', e => {
+  console.log('[SW] Installing v6...');
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
+  console.log('[SW] Activating v6...');
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
@@ -16,7 +66,8 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
-  if (url.includes('firebaseio') || url.includes('googleapis') || url.includes('firebase') || url.includes('gstatic')) {
+  if (url.includes('firebaseio') || url.includes('googleapis') ||
+      url.includes('firebase') || url.includes('gstatic')) {
     return;
   }
   e.respondWith(
@@ -35,3 +86,5 @@ self.addEventListener('fetch', e => {
 self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
+
+console.log('[SW] sw.js v6 unificat activ ✓');

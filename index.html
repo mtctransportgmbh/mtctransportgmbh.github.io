@@ -2744,7 +2744,7 @@ async function initNotifications(){
     let swReg;
     try {
       // Înregistrează și așteaptă activarea completă
-      swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+      swReg = await navigator.serviceWorker.register('/sw.js');
       // Așteaptă să devină activ
       if(swReg.installing) {
         await new Promise(resolve => {
@@ -3438,7 +3438,7 @@ async function doActivateNotif(){
     }
     let swReg;
     try {
-      swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+      swReg = await navigator.serviceWorker.register('/sw.js');
       if(swReg.installing){
         await new Promise(resolve => {
           swReg.installing.addEventListener('statechange', e => { if(e.target.state==='activated') resolve(); });
@@ -3453,8 +3453,8 @@ async function doActivateNotif(){
       swReg = await navigator.serviceWorker.ready;
     }
     const swScriptUrl = swReg.active?.scriptURL || '?';
-    const isFCMsw = swScriptUrl.includes('firebase-messaging-sw');
-    box.innerHTML = `${isFCMsw?'✓':'⚠'} SW: ${swScriptUrl.split('/').pop()}<br>Scope: ${swReg.scope}<br>State: ${swReg.active?.state||'?'}<br>${!isFCMsw?'⚠ SW GREȘIT — FCM nu va funcționa!<br>':''}<br>⏳ Obțin token FCM...`;
+    const isFCMsw = swScriptUrl.includes('sw.js');
+    box.innerHTML = `${isFCMsw?'✓':'⚠'} SW: ${swScriptUrl.split('/').pop()}<br>Scope: ${swReg.scope}<br>State: ${swReg.active?.state||'?'}<br>${!isFCMsw?'⚠ SW GREȘIT!<br>':''}<br>⏳ Obțin token FCM...`;
     const token = await window.fbGetToken(window.fbMessaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: swReg });
     if(!token){ box.innerHTML='✗ Token null — încearcă din Safari sau reinstalează PWA'; return; }
     const existing = knownUsers.find(u=>u.username===currentUser.username);
@@ -3639,7 +3639,7 @@ async function refreshPushToken(){
     // Re-înregistrează service worker-ul
     let swReg;
     try{
-      swReg = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
+      swReg = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
     }catch(e){
       swReg = await navigator.serviceWorker.ready;
