@@ -1,5 +1,5 @@
 // Service Worker unificat — cache + Firebase Messaging
-// MTC Transport v6
+// MTC Transport v7
 
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js');
@@ -16,23 +16,30 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// onBackgroundMessage se declanșează DOAR când payload-ul nu are `notification` field
+// (data-only). Dacă serverul trimite și `notification`, Chrome/Android îl afișează
+// automat — nu mai trece prin aici. Păstrăm handler-ul ca fallback.
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Background FCM message:', JSON.stringify(payload));
-  const title = payload.notification?.title || payload.data?.title || 'MTC Transport';
-  const body = payload.notification?.body || payload.data?.body || '';
+  console.log('[SW] onBackgroundMessage primit:', JSON.stringify(payload));
 
-  // Tag fix bazat pe conținut — previne notificări duplicate
-  const tag = 'mtc-' + btoa(title + body).slice(0, 16);
+  // Dacă există deja notification în payload (trimis de server), browser-ul
+  // îl afișează singur — nu trebuie să facem nimic. Dar unele browsere tot
+  // trec prin aici, deci verificăm să nu dublăm.
+  const title = payload.notification?.title || payload.data?.title || 'MTC Transport';
+  const body  = payload.notification?.body  || payload.data?.body  || '';
+
+  // Tag unic bazat pe conținut — previne duplicate
+  const tag = 'mtc-' + (payload.data?.type || btoa(title + body).slice(0, 12));
 
   self.registration.showNotification(title, {
     body,
     icon: '/icon-192.png',
     badge: '/icon-192.png',
-    tag, // același tag = înlocuiește notificarea existentă în loc să adauge alta
-    renotify: false,
+    tag,
+    renotify: true,
     data: payload.data || {},
     requireInteraction: true,
-    vibrate: [200, 100, 200]
+    vibrate: [200, 100, 200],
   });
 });
 
@@ -51,17 +58,17 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ── CACHE (PWA offline) ───────────────────────────────────────
-const CACHE = 'flota-v6';
+const CACHE = 'flota-v7';
 const ASSETS = ['./', './index.html', './manifest.json', './config.js'];
 
 self.addEventListener('install', e => {
-  console.log('[SW] Installing v6...');
+  console.log('[SW] Installing v7...');
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
 self.addEventListener('activate', e => {
-  console.log('[SW] Activating v6...');
+  console.log('[SW] Activating v7...');
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
@@ -92,4 +99,4 @@ self.addEventListener('message', e => {
   if (e.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
-console.log('[SW] sw.js v6 unificat activ ✓');
+console.log('[SW] sw.js v7 activ ✓');

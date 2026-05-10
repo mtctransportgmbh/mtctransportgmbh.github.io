@@ -2740,25 +2740,11 @@ async function initNotifications(){
   }
 
   try {
-    console.log('[NOTIF] Înregistrez SW...');
-    let swReg;
-    try {
-      // Înregistrează și așteaptă activarea completă
-      swReg = await navigator.serviceWorker.register('/sw.js');
-      // Așteaptă să devină activ
-      if(swReg.installing) {
-        await new Promise(resolve => {
-          swReg.installing.addEventListener('statechange', e => {
-            if(e.target.state === 'activated') resolve();
-          });
-        });
-      }
-      await navigator.serviceWorker.ready;
-      console.log('[NOTIF] SW înregistrat și activ:', swReg.scope, swReg.active?.state);
-    } catch(swErr) {
-      console.log('[NOTIF] SW register fail:', swErr.message);
-      swReg = await navigator.serviceWorker.ready;
-    }
+    console.log('[NOTIF] Obțin SW existent...');
+    // FIX: nu re-înregistrăm SW — folosim cel deja înregistrat la boot
+    // Re-înregistrarea cu path diferit (/sw.js vs sw.js) crea două scope-uri distincte
+    const swReg = await navigator.serviceWorker.ready;
+    console.log('[NOTIF] SW activ:', swReg.scope, swReg.active?.state);
 
     console.log('[NOTIF] Cer token FCM...');
     const token = await window.fbGetToken(window.fbMessaging, {
@@ -3036,13 +3022,12 @@ window.activateNotifFromBanner=activateNotifFromBanner;
 async function requestNotificationPermission(){
   if(!('Notification' in window)) return;
   if(Notification.permission === 'default'){
-    // Mic delay ca să nu apară imediat la deschidere
-    setTimeout(async ()=>{
-      const result = await Notification.requestPermission();
-      if(result === 'granted'){
-        showInAppNotification('Notificări activate ✓', 'Vei primi notificări pentru sarcini noi.');
-      }
-    }, 3000);
+    // FIX: fără setTimeout — await trebuie să aștepte răspunsul userului
+    // înainte ca initNotifications() să ruleze (altfel permission e tot 'default')
+    const result = await Notification.requestPermission();
+    if(result === 'granted'){
+      showInAppNotification('Notificări activate ✓', 'Vei primi notificări pentru sarcini noi.');
+    }
   }
 }
 
