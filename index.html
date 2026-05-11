@@ -306,6 +306,44 @@ body.user-mode .log-mobile-card {
   </div>
 </div>
 
+<!-- ── PIN SETUP SCREEN ───────────────────────────────────────── -->
+<div id="pin-setup-screen" class="login-screen" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">MTC TRANSPORT</div>
+    <div class="login-title">Setează PIN personal</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:20px;text-align:center;line-height:1.5">
+      Prima conectare — alege un PIN din 6 cifre.<br>Îl vei folosi la viitoarele conectări.
+    </div>
+    <div id="pin-setup-error" class="login-error" style="display:none"></div>
+    <div class="login-field">
+      <div class="login-label">PIN nou (6 cifre)</div>
+      <input id="pin-setup-1" type="password" inputmode="numeric" maxlength="6" class="login-input" placeholder="••••••" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <div class="login-field">
+      <div class="login-label">Confirmă PIN</div>
+      <input id="pin-setup-2" type="password" inputmode="numeric" maxlength="6" class="login-input" placeholder="••••••" oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    </div>
+    <button class="login-btn" onclick="pinSetupConfirm()">Salvează PIN</button>
+  </div>
+</div>
+
+<!-- ── PIN LOGIN SCREEN ────────────────────────────────────────── -->
+<div id="pin-login-screen" class="login-screen" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">MTC TRANSPORT</div>
+    <div class="login-title" id="pin-login-title">Bun venit</div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:20px;text-align:center">Introdu PIN-ul tău de 6 cifre</div>
+    <div id="pin-login-error" class="login-error" style="display:none"></div>
+    <div class="login-field">
+      <input id="pin-login-input" type="password" inputmode="numeric" maxlength="6" class="login-input" placeholder="••••••" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onkeydown="if(event.key==='Enter') pinLoginConfirm()">
+    </div>
+    <button class="login-btn" onclick="pinLoginConfirm()">Intră</button>
+    <div style="text-align:center;margin-top:14px;font-size:13px">
+      <a onclick="pinLoginReset()" style="color:var(--text3);cursor:pointer;text-decoration:none">Am uitat PIN-ul — cere resetare</a>
+    </div>
+  </div>
+</div>
+
 <!-- ── APP ────────────────────────────────────────────────────── -->
 <div id="app" style="display:none">
 
@@ -339,6 +377,7 @@ body.user-mode .log-mobile-card {
   <button class="tab-btn" onclick="showTab('setari')">Setări</button>
   <button class="tab-btn" id="tab-btn-stricate" onclick="showTab('stricate')" style="display:none">🔧 Stricate</button>
   <button class="tab-btn" id="tab-btn-admin" onclick="showTab('admin')" style="display:none">⚙ Admin</button>
+  <button class="tab-btn" id="tab-btn-backup-flota" onclick="showTab('backup-flota')" style="display:none">💾 Backup</button>
 </div>
 
 <div id="toolbar-masini" class="toolbar">
@@ -466,6 +505,25 @@ body.user-mode .log-mobile-card {
     </div>
   </div>
 
+  <!-- ── TAB BACKUP FLOTĂ ────────────────────────────────── -->
+  <div id="tab-backup-flota" style="display:none">
+    <div id="flota-backup-banner" style="display:none;background:rgba(200,245,66,.06);border:1px solid rgba(200,245,66,.25);border-radius:var(--radius);padding:12px 16px;margin-bottom:14px;font-size:13px;color:var(--text2);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:16px">💾</span>
+      <span>Ultimul backup: <strong style="color:var(--accent)" id="flota-backup-last-ts">—</strong></span>
+    </div>
+    <div class="settings-section">
+      <div class="settings-title">Backup date flotă</div>
+      <div style="font-size:13px;color:var(--text2);line-height:1.6;margin-bottom:14px">
+        Se păstrează ultimele <strong style="color:var(--text)">10 backup-uri</strong>. Backup automat la fiecare modificare. Backup manual oricând.
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="btn btn-primary" onclick="flotaBackupManual()" style="flex:none;width:auto">💾 Backup manual acum</button>
+        <button class="btn" onclick="flotaBackupExportLast()" style="flex:none;width:auto">⬇ Export ultimul (JSON)</button>
+      </div>
+      <div id="flota-backup-list-section"></div>
+    </div>
+  </div>
+
   <!-- ── TAB STRICATE ─────────────────────────────────────── -->
   <div id="tab-stricate" style="display:none">
     <div style="background:rgba(255,90,90,.06);border:1px solid rgba(255,90,90,.22);border-radius:var(--radius);padding:14px 18px;margin-bottom:16px;font-size:13px;color:var(--text2);line-height:1.6">
@@ -511,25 +569,13 @@ body.user-mode .log-mobile-card {
     <div class="modal-sub" id="md-sub"></div>
     <div class="modal-field">
       <div class="modal-label">Șofer nou</div>
-      <!-- SEARCH VIEW: vizibil când nu e selectat nimic -->
-      <div id="md-search-view">
-        <div style="position:relative;margin-bottom:6px">
-          <input id="md-driver-search" placeholder="🔍 caută șofer..." oninput="filterDriverList()" autocomplete="off"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:14px;padding:10px 36px 10px 12px;outline:none">
-          <button onclick="clearDriverSearch()" id="md-search-clear"
-            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px;display:none">✕</button>
-        </div>
-        <div id="md-driver-list" style="background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);overflow-y:auto;max-height:220px;"></div>
+      <div style="position:relative;margin-bottom:6px">
+        <input id="md-driver-search" placeholder="🔍 caută șofer..." oninput="filterDriverList()" autocomplete="off"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:14px;padding:10px 36px 10px 12px;outline:none">
+        <button onclick="clearDriverSearch()" id="md-search-clear"
+          style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px;display:none">✕</button>
       </div>
-      <!-- SELECTED VIEW: vizibil după selecție -->
-      <div id="md-selected-view" style="display:none">
-        <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--radius);padding:11px 14px;">
-          <span style="flex:1;font-size:15px;font-weight:500" id="md-selected-name"></span>
-          <button onclick="mdClearSelection()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:2px 4px;line-height:1">✕</button>
-        </div>
-      </div>
-      <!-- valoarea selectată — ascunsă -->
-      <input type="hidden" id="md-driver" value="">
+      <select id="md-driver" size="6" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:14px;padding:4px;outline:none"></select>
     </div>
     <div class="modal-field">
       <div class="modal-label">Data și ora schimbării</div>
@@ -1364,9 +1410,7 @@ function buildOpts(sel, filter=''){
 
   let html = `<option value="DEPOZIT"${sel==='DEPOZIT'?' selected':''}>DEPOZIT</option>`+
     `<option value="POLLING"${sel==='POLLING'?' selected':''}>POLLING</option>`+
-    `<option value="EISELFING"${sel==='EISELFING'?' selected':''}>EISELFING</option>`+
     `<option value="AVP"${sel==='AVP'?' selected':''}>AVP</option>`+
-    `<option value="PAKETSHOP"${sel==='PAKETSHOP'?' selected':''}>PAKETSHOP</option>`+
     `<option value="STRICATA"${sel==='STRICATA'?' selected':''}>🔧 STRICATĂ</option>`+
     `<option value=""${(!sel||sel==='')?' selected':''}>— nealocat —</option>`;
 
@@ -1389,94 +1433,24 @@ function buildOpts(sel, filter=''){
   return html;
 }
 
-// Construiește lista de opțiuni ca elemente HTML clicabile
-function buildDriverList(q, selected){
-  const soferiList = soferi.map(s => typeof s === 'string' ? {name:s, location:''} : s);
-  const special = ['DEPOZIT','POLLING','EISELFING','AVP','PAKETSHOP'];
-  const specialOpts = [
-    {name:'DEPOZIT',location:''},{name:'POLLING',location:''},
-    {name:'EISELFING',location:''},{name:'AVP',location:''},
-    {name:'PAKETSHOP',location:''},{name:'STRICATA',label:'🔧 STRICATĂ',location:''},
-    {name:'',label:'— nealocat —',location:''}
-  ];
-
-  let items = [];
-  if(q){
-    const ql = q.toLowerCase();
-    items = [
-      ...specialOpts.filter(o=>(o.label||o.name).toLowerCase().includes(ql)),
-      ...soferiList.filter(s=>s.name.toLowerCase().includes(ql)).map(s=>({name:s.name,location:s.location,label:s.name+(s.location?' ('+s.location+')':'')}))
-    ];
-  } else {
-    const eisel = soferiList.filter(s=>s.location==='Eiselfing').sort((a,b)=>a.name.localeCompare(b.name));
-    const ruhst = soferiList.filter(s=>s.location==='Ruhstorf').sort((a,b)=>a.name.localeCompare(b.name));
-    const paket = soferiList.filter(s=>s.location==='Paketshop').sort((a,b)=>a.name.localeCompare(b.name));
-    const other = soferiList.filter(s=>!s.location||(s.location!=='Eiselfing'&&s.location!=='Ruhstorf'&&s.location!=='Paketshop')).sort((a,b)=>a.name.localeCompare(b.name));
-    const grouped = [
-      {header:null, items: specialOpts},
-      {header:'── EISELFING ──', items: eisel.map(s=>({name:s.name,location:s.location}))},
-      {header:'── RUHSTORF ──',  items: ruhst.map(s=>({name:s.name,location:s.location}))},
-      {header:'── PAKETSHOP ──', items: paket.map(s=>({name:s.name,location:s.location}))},
-      {header:'── ALȚII ──',     items: other.map(s=>({name:s.name,location:s.location}))},
-    ];
-    let html = '';
-    grouped.forEach(g=>{
-      if(!g.items.length) return;
-      if(g.header) html += `<div style="padding:5px 12px;font-size:10px;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;border-top:1px solid var(--border)">${g.header}</div>`;
-      g.items.forEach(o=>{
-        const label = o.label || o.name || '— nealocat —';
-        const isSel = o.name === selected;
-        html += `<div onclick="mdSelectDriver('${o.name.replace(/'/g,"\'")}','${(o.label||o.name||'— nealocat —').replace(/'/g,"\'")}') " style="padding:10px 14px;font-size:14px;cursor:pointer;${isSel?'background:rgba(200,245,66,.12);color:var(--accent);font-weight:500':'color:var(--text)'}" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='${isSel?'rgba(200,245,66,.12)':''}'">${label}</div>`;
-      });
-    });
-    document.getElementById('md-driver-list').innerHTML = html;
-    return;
-  }
-  // flat list pentru search
-  let html = '';
-  if(!items.length){ html='<div style="padding:12px 14px;font-size:13px;color:var(--text3);font-style:italic">Niciun rezultat</div>'; }
-  else items.forEach(o=>{
-    const label = o.label || o.name || '— nealocat —';
-    html += `<div onclick="mdSelectDriver('${o.name.replace(/'/g,"\'")}','${label.replace(/'/g,"\'")}') " style="padding:10px 14px;font-size:14px;cursor:pointer;color:var(--text)" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''"> ${label}</div>`;
-  });
-  document.getElementById('md-driver-list').innerHTML = html;
-}
-
-function mdSelectDriver(value, label){
-  document.getElementById('md-driver').value = value;
-  document.getElementById('md-selected-name').textContent = label || '— nealocat —';
-  document.getElementById('md-search-view').style.display = 'none';
-  document.getElementById('md-selected-view').style.display = '';
-}
-
-function mdClearSelection(){
-  document.getElementById('md-driver').value = '';
-  document.getElementById('md-search-view').style.display = '';
-  document.getElementById('md-selected-view').style.display = 'none';
-  const inp = document.getElementById('md-driver-search');
-  if(inp){ inp.value=''; inp.focus(); }
-  document.getElementById('md-search-clear').style.display='none';
-  buildDriverList('', '');
-}
-
 function filterDriverList(){
   const q = document.getElementById('md-driver-search')?.value || '';
   const clearBtn = document.getElementById('md-search-clear');
   if(clearBtn) clearBtn.style.display = q ? '' : 'none';
-  buildDriverList(q, document.getElementById('md-driver')?.value || '');
+  const sel = document.getElementById('md-driver')?.value || '';
+  document.getElementById('md-driver').innerHTML = buildOpts(sel, q);
 }
 
 function clearDriverSearch(){
   const input = document.getElementById('md-driver-search');
   if(input){ input.value=''; input.focus(); }
   document.getElementById('md-search-clear').style.display='none';
-  buildDriverList('', document.getElementById('md-driver')?.value || '');
+  const sel = document.getElementById('md-driver')?.value || '';
+  document.getElementById('md-driver').innerHTML = buildOpts(sel, '');
 }
 
 window.filterDriverList=filterDriverList;
 window.clearDriverSearch=clearDriverSearch;
-window.mdSelectDriver=mdSelectDriver;
-window.mdClearSelection=mdClearSelection;
 
 function toast(msg){
   const t=document.getElementById('toast');
@@ -1553,6 +1527,84 @@ function renderLoginUserButtons(){
 }
 
 // Login rapid pentru Cristi/Mihaela/Raluca — încearcă să se logheze, dacă userul nu există îl creează automat
+// ── PIN LOGIC ─────────────────────────────────────────────────
+let _pinPendingUser = null; // {username, displayName} așteptând PIN
+
+function pinScreensHide(){
+  document.getElementById('pin-setup-screen').style.display='none';
+  document.getElementById('pin-login-screen').style.display='none';
+}
+
+// Apelat după ce Firebase autentifică user-ul quick — verificăm dacă are PIN
+async function afterQuickAuth(username, displayName){
+  // Citim knownUsers din Firestore pentru a vedea dacă user-ul are PIN setat
+  // Dar knownUsers se populează în onAuthStateChanged — folosim variabila globală
+  const ku = knownUsers.find(u=>u.username===username);
+  _pinPendingUser = {username, displayName};
+
+  if(!ku?.pin){
+    // Prima conectare — arată setup PIN
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('pin-setup-screen').style.display='';
+    document.getElementById('pin-setup-1').value='';
+    document.getElementById('pin-setup-2').value='';
+    document.getElementById('pin-setup-error').style.display='none';
+    setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
+  } else {
+    // Are PIN — arată ecranul de login PIN
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('pin-login-screen').style.display='';
+    document.getElementById('pin-login-title').textContent = 'Bun venit, ' + displayName;
+    document.getElementById('pin-login-input').value='';
+    document.getElementById('pin-login-error').style.display='none';
+    setTimeout(()=>document.getElementById('pin-login-input')?.focus(), 100);
+  }
+}
+
+function pinSetupConfirm(){
+  const p1 = document.getElementById('pin-setup-1').value.trim();
+  const p2 = document.getElementById('pin-setup-2').value.trim();
+  const errEl = document.getElementById('pin-setup-error');
+  errEl.style.display='none';
+  if(p1.length !== 6){ errEl.textContent='PIN-ul trebuie să aibă exact 6 cifre'; errEl.style.display=''; return; }
+  if(!/^\d{6}$/.test(p1)){ errEl.textContent='PIN-ul trebuie să conțină doar cifre'; errEl.style.display=''; return; }
+  if(p1 !== p2){ errEl.textContent='PIN-urile nu coincid'; errEl.style.display=''; return; }
+  // Salvăm PIN în knownUsers
+  const ku = knownUsers.find(u=>u.username===_pinPendingUser?.username);
+  if(ku){ ku.pin = p1; }
+  else if(_pinPendingUser){
+    knownUsers.push({username:_pinPendingUser.username, name:_pinPendingUser.displayName, pin:p1, firstSeen:new Date().toISOString(), lastSeen:new Date().toISOString()});
+  }
+  saveToCloud();
+  pinScreensHide();
+  // Continuăm cu app-ul — onAuthStateChanged deja a rulat, deci app-ul e gata
+  toast('✓ PIN setat cu succes');
+}
+
+function pinLoginConfirm(){
+  const pin = document.getElementById('pin-login-input').value.trim();
+  const errEl = document.getElementById('pin-login-error');
+  errEl.style.display='none';
+  const ku = knownUsers.find(u=>u.username===_pinPendingUser?.username);
+  if(!ku?.pin){ pinScreensHide(); return; } // fallback - nu are pin, lasă să intre
+  if(pin !== ku.pin){
+    errEl.textContent='PIN greșit. Încearcă din nou.';
+    errEl.style.display='';
+    document.getElementById('pin-login-input').value='';
+    document.getElementById('pin-login-input').focus();
+    return;
+  }
+  // PIN corect
+  ku.lastSeen = new Date().toISOString();
+  saveToCloud();
+  pinScreensHide();
+  toast('✓ Autentificat');
+}
+
+function pinLoginReset(){
+  alert('Contactează adminul pentru resetarea PIN-ului.');
+}
+
 async function quickLogin(username, displayName){
   const errEl=document.getElementById('login-error');
   errEl.style.display='none';
@@ -1572,6 +1624,10 @@ async function quickLogin(username, displayName){
         throw e;
       }
     }
+    // Firebase login reușit — verificăm PIN (knownUsers e disponibil după loadFromCloud)
+    // Folosim un mic delay ca loadFromCloud să se termine
+    setTimeout(()=>afterQuickAuth(username, displayName), 800);
+    return; // nu mai facem nimic — afterQuickAuth decide ce urmează
   } catch(e){
     let msg = 'Nu m-am putut conecta';
     if(e.code==='auth/network-request-failed') msg='Fără conexiune la internet';
@@ -1836,6 +1892,8 @@ function hydrateFromCloud(d){
   stocIdCtr = d.stocIdCtr || 1;
   backupuri = (d.backupuri||[]).map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0}));
   backupIdCtr = d.backupIdCtr || 1;
+  flotaBackupuri = (d.flotaBackupuri||[]).map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0,snapshot:b.snapshot||''}));
+  flotaBackupIdCtr = d.flotaBackupIdCtr || 1;
   garantii = (d.garantii||[]).map(g=>({...g}));
   garantiiIdCtr = d.garantiiIdCtr || 1;
 
@@ -1901,7 +1959,10 @@ function updateAdminUI(){
 
   const adminBtn = document.getElementById('tab-btn-admin');
   const stricateBtn = document.getElementById('tab-btn-stricate');
+  const backupFlotaBtn = document.getElementById('tab-btn-backup-flota');
   if(adminBtn) adminBtn.style.display = isAdmin ? '' : 'none';
+  if(backupFlotaBtn) backupFlotaBtn.style.display = isAdmin ? '' : 'none';
+  if(isAdmin){ renderFlotaBackupList(); updateFlotaBackupBanner(); }
   // Tab Stricate vizibil pentru toți (useri îl văd doar ca listă, fără să poată edita)
   if(stricateBtn) stricateBtn.style.display = '';
 
@@ -2086,6 +2147,8 @@ function saveToCloud(){
       stocIdCtr,
       backupuri: backupuri.map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0})),
       backupIdCtr,
+      flotaBackupuri: flotaBackupuri.map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0,snapshot:b.snapshot||''})),
+      flotaBackupIdCtr,
       garantii,
       garantiiIdCtr,
       lastModifiedBy: currentUser?.name || 'unknown',
@@ -2188,25 +2251,16 @@ function askChangeDriver(carId, newDriver){
   pendingDriverChange={carId, newDriver, oldDriver:m.sofer};
   document.getElementById('md-title').textContent='Schimbă șofer — '+m.nr;
   document.getElementById('md-sub').textContent=`${m.sofer||'—'} → ${newDriver}`;
-  // Inițializez picker-ul cu șoferul pre-selectat
-  const inp = document.getElementById('md-driver-search');
-  if(inp){ inp.value=''; }
-  document.getElementById('md-search-clear').style.display='none';
-  document.getElementById('md-driver').value = newDriver || '';
-
-  if(newDriver){
-    // Dacă vine deja cu un șofer ales, arată direct "selected view"
-    document.getElementById('md-search-view').style.display = 'none';
-    document.getElementById('md-selected-view').style.display = '';
-    document.getElementById('md-selected-name').textContent = newDriver || '— nealocat —';
-  } else {
-    document.getElementById('md-search-view').style.display = '';
-    document.getElementById('md-selected-view').style.display = 'none';
-    buildDriverList('', '');
-    setTimeout(()=>{ document.getElementById('md-driver-search')?.focus(); }, 100);
-  }
+  // Resetez câmpul de căutare și focusez imediat
+  const searchInput = document.getElementById('md-driver-search');
+  if(searchInput) searchInput.value='';
+  const clearBtn = document.getElementById('md-search-clear');
+  if(clearBtn) clearBtn.style.display='none';
+  document.getElementById('md-driver').innerHTML=buildOpts(newDriver, '');
   document.getElementById('md-dt').value=fmtDtInput(new Date());
   document.getElementById('modal-driver').classList.add('open');
+  // Focus automat pe search la deschidere
+  setTimeout(()=>{ document.getElementById('md-driver-search')?.focus(); }, 120);
 }
 
 function closeModalDriver(){
@@ -2257,6 +2311,7 @@ function confirmDriver(){
   renderAll();
   // Backup automat la schimbare șofer
   backupAuto(`Schimbat șofer ${m.nr}: ${pendingDriverChange.oldDriver||'—'} → ${newDriver} de ${currentUser?.name}`);
+  flotaBackupAuto(`Schimbat șofer ${m.nr}: ${pendingDriverChange.oldDriver||'—'} → ${newDriver} de ${currentUser?.name}`);
   toast('Șofer schimbat');
 }
 
@@ -2596,6 +2651,7 @@ function addSofer(){
   soferi.push({name: n, location: loc});
   inp.value='';
   if(locSel) locSel.value='';
+  flotaBackupAuto('Adăugat șofer: ' + n + ' de ' + (currentUser?.name||'admin'));
   saveToCloud();
   renderAll();
   toast('Șofer adăugat');
@@ -2603,6 +2659,7 @@ function addSofer(){
 function removeSofer(n){
   if(!confirm('Ștergi șoferul "'+n+'"?'))return;
   soferi=soferi.filter(s => (typeof s === 'string' ? s : s.name) !== n);
+  flotaBackupAuto('Șters șofer: ' + n + ' de ' + (currentUser?.name||'admin'));
   saveToCloud();
   renderAll();
   toast('Șofer șters');
@@ -2625,6 +2682,7 @@ function addMasina(){
     });
   }
   document.getElementById('new-nr').value='';
+  flotaBackupAuto('Adăugată mașină: ' + nr + ' de ' + (currentUser?.name||'admin'));
   saveToCloud();
   renderAll();
   toast('Mașină adăugată');
@@ -2653,7 +2711,9 @@ function saveEdit(){
 function deleteMasina(){
   if(!confirm('Ștergi această mașină?'))return;
   const m=masini.find(x=>x.id===editingCarId);
+  const _mDel = masini.find(x=>x.id===editingCarId);
   masini=masini.filter(x=>x.id!==editingCarId);
+  flotaBackupAuto('Ștearsă mașină: ' + (_mDel?.nr||'?') + ' de ' + (currentUser?.name||'admin'));
   closeModalEdit();
   saveToCloud();
   renderAll();
@@ -2770,16 +2830,32 @@ function renderAdminUsers(){
       const c=avc(u.name);
       const isAdmin = admins.includes(u.username);
       const isMe = currentUser && u.username===currentUser.username;
-      return `<div style="display:flex;align-items:center;gap:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px">
+      const pinBadge = u.pin
+        ? `<span style="font-family:var(--mono);font-size:13px;background:var(--surface);border:1px solid var(--border2);border-radius:3px;padding:2px 8px;color:var(--text2);letter-spacing:.1em">${u.pin}</span>`
+        : `<span style="font-size:11px;color:var(--text3);font-style:italic">fără PIN</span>`;
+      return `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;flex-wrap:wrap">
         <div style="width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:${c}33;color:${c};flex-shrink:0">${initials(u.name)}</div>
-        <div style="flex:1;min-width:0">
+        <div style="flex:1;min-width:160px">
           <div style="font-size:14px;font-weight:500">${u.name}${isMe?' <span style="color:var(--text3);font-size:11px;font-weight:400">(tu)</span>':''}</div>
           <div style="font-family:var(--mono);font-size:12px;color:var(--text2)">${u.username}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+          <span style="font-size:11px;color:var(--text3)">PIN:</span> ${pinBadge}
+          ${!isAdmin?`<button onclick="adminResetPin('${u.username.replace(/'/g,"\\'")}','${u.name.replace(/'/g,"\\'")}')" style="background:none;border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:4px">↺ Reset</button>`:''}
         </div>
         ${isAdmin?'<span style="font-size:11px;font-weight:500;color:var(--accent);background:rgba(200,245,66,.12);padding:3px 8px;border-radius:3px">ADMIN</span>':''}
         ${isMe?'':`<button onclick="adminDeleteUser('${u.username.replace(/'/g,"\\'")}')" style="background:none;border:1px solid rgba(255,90,90,.4);color:var(--danger);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:4px;flex-shrink:0">Șterge</button>`}
       </div>`;
     }).join('')+'</div>';
+}
+
+function adminResetPin(username, name){
+  if(!confirm(`Resetezi PIN-ul pentru ${name}?\nLa următoarea conectare va fi nevoit să seteze un PIN nou.`)) return;
+  const ku = knownUsers.find(x=>x.username===username);
+  if(ku){ ku.pin = null; delete ku.pin; }
+  saveToCloud();
+  renderAdminUsers();
+  toast(`PIN resetat pentru ${name}`);
 }
 
 function adminDeleteUser(username){
@@ -3255,7 +3331,151 @@ function scadeStoc(descriere, masinaTip){
 }
 
 // ═════════════════════════════════════════════════════════════
-// ── BACKUP ───────────────────────────────────────────────────
+// ── BACKUP FLOTĂ ─────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════
+let flotaBackupuri = [];
+let flotaBackupIdCtr = 1;
+const MAX_FLOTA_BACKUPS = 10;
+
+function flotaCreateSnapshot(triggerBy){
+  const snap = {
+    masini, soferi,
+    log: log.map(l=>({...l, preluat:l.preluat?l.preluat.toISOString():null, restituit:l.restituit?l.restituit.toISOString():null})),
+    carIdCtr, logIdCtr, admins, knownUsers
+  };
+  const b = {
+    id: flotaBackupIdCtr++,
+    timestamp: new Date().toISOString(),
+    triggerBy: triggerBy || currentUser?.name || 'sistem',
+    size: JSON.stringify(snap).length,
+    snapshot: JSON.stringify(snap)
+  };
+  flotaBackupuri.unshift(b);
+  if(flotaBackupuri.length > MAX_FLOTA_BACKUPS) flotaBackupuri = flotaBackupuri.slice(0, MAX_FLOTA_BACKUPS);
+  updateFlotaBackupBanner();
+  return b;
+}
+
+function flotaBackupAuto(triggerBy){
+  flotaCreateSnapshot(triggerBy);
+}
+
+function flotaBackupManual(){
+  if(!isAdminUser){ toast('Doar adminul poate face backup'); return; }
+  flotaCreateSnapshot('Manual — ' + (currentUser?.name||'admin'));
+  saveToCloud();
+  renderFlotaBackupList();
+  toast('✓ Backup flotă creat');
+}
+
+function flotaBackupExportLast(){
+  if(!flotaBackupuri.length){ toast('Nu există backup-uri'); return; }
+  const b = flotaBackupuri[0];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([b.snapshot], {type:'application/json'}));
+  a.download = `backup_flota_${b.timestamp.slice(0,10)}.json`;
+  a.click();
+}
+
+function flotaBackupExport(id){
+  const b = flotaBackupuri.find(x=>x.id===id);
+  if(!b?.snapshot){ toast('Backup invalid'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([b.snapshot], {type:'application/json'}));
+  a.download = `backup_flota_${b.timestamp.slice(0,10)}.json`;
+  a.click();
+}
+
+function flotaBackupDelete(id){
+  if(!confirm('Ștergi acest backup?')) return;
+  flotaBackupuri = flotaBackupuri.filter(x=>x.id!==id);
+  saveToCloud();
+  renderFlotaBackupList();
+  toast('Backup șters');
+}
+
+function flotaBackupRestore(id){
+  const b = flotaBackupuri.find(x=>x.id===id);
+  if(!b?.snapshot){ toast('Backup invalid'); return; }
+  const dt = new Date(b.timestamp);
+  const dtStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+  if(!confirm(`Restaurezi backup din ${dtStr}?\nTrigger: ${b.triggerBy}\n\nDatele curente (mașini, șoferi, log) vor fi înlocuite.\nAcțiunea NU poate fi anulată.`)) return;
+  try{
+    const data = JSON.parse(b.snapshot);
+    masini = data.masini || [];
+    soferi = data.soferi || [];
+    log = (data.log||[]).map(l=>({...l, preluat:l.preluat?new Date(l.preluat):null, restituit:l.restituit?new Date(l.restituit):null}));
+    carIdCtr = data.carIdCtr || 200;
+    logIdCtr = data.logIdCtr || 1;
+    saveToCloud();
+    renderAll();
+    renderFlotaBackupList();
+    toast('✓ Backup restaurat');
+  } catch(e){ toast('Eroare: ' + e.message); }
+}
+
+function flotaBackupRestoreFromFile(){
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async e => {
+    const file = e.target.files[0]; if(!file) return;
+    const text = await file.text();
+    try{
+      const data = JSON.parse(text);
+      if(!data.masini){ toast('Fișier invalid — lipsesc datele de flotă'); return; }
+      if(!confirm(`Încarci backup din ${file.name}?\nVa înlocui datele curente de flotă.`)) return;
+      masini = data.masini || [];
+      soferi = data.soferi || [];
+      log = (data.log||[]).map(l=>({...l, preluat:l.preluat?new Date(l.preluat):null, restituit:l.restituit?new Date(l.restituit):null}));
+      carIdCtr = data.carIdCtr || 200;
+      logIdCtr = data.logIdCtr || 1;
+      saveToCloud(); renderAll(); renderFlotaBackupList();
+      toast('✓ Backup restaurat din fișier');
+    } catch(e){ toast('Eroare: JSON invalid'); }
+  };
+  input.click();
+}
+
+function updateFlotaBackupBanner(){
+  if(!isAdminUser) return;
+  const banner = document.getElementById('flota-backup-banner');
+  const tsEl = document.getElementById('flota-backup-last-ts');
+  if(!banner || !tsEl) return;
+  if(flotaBackupuri.length){
+    const last = flotaBackupuri[0];
+    const dt = new Date(last.timestamp);
+    const dtStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+    tsEl.textContent = dtStr + ' · ' + (last.triggerBy||'—');
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function renderFlotaBackupList(){
+  const sec = document.getElementById('flota-backup-list-section'); if(!sec) return;
+  if(!flotaBackupuri.length){ sec.innerHTML='<div style="font-size:13px;color:var(--text3)">Niciun backup încă.</div>'; return; }
+  sec.innerHTML = '<div style="display:grid;gap:8px">' +
+    flotaBackupuri.map((b,i)=>{
+      const dt = new Date(b.timestamp);
+      const dtStr = `${String(dt.getDate()).padStart(2,'0')}.${String(dt.getMonth()+1).padStart(2,'0')}.${dt.getFullYear()} ${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}`;
+      const sizeKB = ((b.size||0)/1024).toFixed(1);
+      return `<div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;flex-wrap:wrap">
+        <div style="flex:1;min-width:160px">
+          <div style="font-size:13px;font-weight:500">${i===0?'<span style="color:var(--accent);font-size:11px;font-family:var(--mono);margin-right:6px">RECENT</span>':''}${dtStr}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${b.triggerBy||'—'} · ${sizeKB} KB</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button onclick="flotaBackupRestore(${b.id})" style="background:none;border:1px solid rgba(200,245,66,.4);color:var(--accent);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:4px" title="Restaurează">↩</button>
+          <button onclick="flotaBackupExport(${b.id})" style="background:none;border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:4px" title="Export JSON">⬇</button>
+          <button onclick="flotaBackupDelete(${b.id})" style="background:none;border:1px solid rgba(255,90,90,.3);color:var(--danger);cursor:pointer;font-size:12px;padding:5px 10px;border-radius:4px" title="Șterge">🗑</button>
+        </div>
+      </div>`;
+    }).join('') + '</div>' +
+    '<div style="margin-top:14px"><button class="btn" onclick="flotaBackupRestoreFromFile()" style="flex:none;width:auto">⬆ Restaurează din fișier</button></div>';
+}
+
+// ── BACKUP SERVICE ─────────────────────────────────────────────
 // ═════════════════════════════════════════════════════════════
 const MAX_BACKUPS=5;
 
@@ -3380,10 +3600,10 @@ function renderSrvmContent(masinaId){
     { key:'ulei', label:'🛢 Schimb ulei', keywords:['ulei','oil'] },
     { key:'placute_fata', label:'🔴 Plăcuțe față', keywords:['plăcuțe față','placute fata','placuțe față','frână față','frana fata','brake front','față frân','fata frana'] },
     { key:'placute_spate', label:'🔴 Plăcuțe spate', keywords:['plăcuțe spate','placute spate','placuțe spate','frână spate','frana spate','brake rear','spate frân','spate frana'] },
-    { key:'placute', label:'🔴 Plăcuțe (nespecificat)', keywords:['plăcuțe','placute','placuțe','frân','frana','brake'] },
+
     { key:'cauciucuri_fata', label:'⚫ Cauciucuri față', keywords:['cauciuc față','cauciuc fata','anvelop față','anvelop fata','roat față','roat fata','față cauciuc','fata cauciuc','front tyre','front tire'] },
     { key:'cauciucuri_spate', label:'⚫ Cauciucuri spate', keywords:['cauciuc spate','anvelop spate','roat spate','spate cauciuc','rear tyre','rear tire'] },
-    { key:'cauciucuri', label:'⚫ Cauciucuri (nespecificat)', keywords:['cauciuc','anvelop','roat','tyre','tire'] },
+
   ];
 
   function matchCat(descriere, keywords){
@@ -3429,7 +3649,7 @@ function renderSrvmContent(masinaId){
 
   // Separă în categorii
   const altele = [];
-  const catItems = {ulei:[], placute_fata:[], placute_spate:[], placute:[], cauciucuri_fata:[], cauciucuri_spate:[], cauciucuri:[]};
+  const catItems = {ulei:[], placute_fata:[], placute_spate:[], cauciucuri_fata:[], cauciucuri_spate:[]};
 
   reps.forEach(r=>{
     let matched = false;
@@ -3450,8 +3670,7 @@ function renderSrvmContent(masinaId){
 
   // Secțiuni importante — "toate" apare doar dacă nu există față/spate specifice
   CATEGORII.forEach(cat=>{
-    if(cat.key==='cauciucuri' && (catItems.cauciucuri_fata.length>0 || catItems.cauciucuri_spate.length>0)) return;
-    if(cat.key==='placute' && (catItems.placute_fata.length>0 || catItems.placute_spate.length>0)) return;
+
     html += buildSectiune(cat.label, catItems[cat.key]);
   });
 
@@ -3559,7 +3778,7 @@ async function doActivateNotif(){
     } else {
       knownUsers.push({username:currentUser.username,name:currentUser.name,pushToken:token,pushTokens:[token],pushTokenUpdatedAt:new Date().toISOString(),firstSeen:new Date().toISOString(),lastSeen:new Date().toISOString()});
     }
-    const payload={masini,soferi,log:log.map(l=>({...l,preluat:l.preluat?l.preluat.toISOString():null,restituit:l.restituit?l.restituit.toISOString():null})),carIdCtr,logIdCtr,admins,knownUsers,forcedLogouts:window._currentForcedLogouts||{},reparatii,repIdCtr,taskuri,taskIdCtr,stoc,stocIdCtr,backupuri:backupuri.map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0})),backupIdCtr,garantii,garantiiIdCtr,lastModifiedBy:currentUser.name,lastModifiedAt:new Date().toISOString()};
+    const payload={masini,soferi,log:log.map(l=>({...l,preluat:l.preluat?l.preluat.toISOString():null,restituit:l.restituit?l.restituit.toISOString():null})),carIdCtr,logIdCtr,admins,knownUsers,forcedLogouts:window._currentForcedLogouts||{},reparatii,repIdCtr,taskuri,taskIdCtr,stoc,stocIdCtr,backupuri:backupuri.map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0})),backupIdCtr,flotaBackupuri:flotaBackupuri.map(b=>({id:b.id,timestamp:b.timestamp,triggerBy:b.triggerBy,size:b.size||0,snapshot:b.snapshot||''})),flotaBackupIdCtr,garantii,garantiiIdCtr,lastModifiedBy:currentUser.name,lastModifiedAt:new Date().toISOString()};
     await window.fbHelpers.setDoc(window.fbDocRef, payload);
     const u = knownUsers.find(x=>x.username===currentUser.username);
     box.innerHTML = `✓ ACTIVAT!<br>Token: ${token.slice(0,25)}...<br>Dispozitive: ${u?.pushTokens?.length||1}<br><br>Apasă 📱 Test pentru a verifica.`;
@@ -4780,6 +4999,10 @@ window.doLogout=doLogout;
 window.showUserMenu=showUserMenu;
 window.adminSaveAdmins=adminSaveAdmins;
 window.adminDeleteUser=adminDeleteUser;
+window.adminResetPin=adminResetPin;
+window.pinSetupConfirm=pinSetupConfirm;
+window.pinLoginConfirm=pinLoginConfirm;
+window.pinLoginReset=pinLoginReset;
 window.adminDeleteAllLogs=adminDeleteAllLogs;
 window.quickLogin=quickLogin;
 window.showAdminLogin=showAdminLogin;
@@ -4849,6 +5072,12 @@ window.stocDelete=stocDelete;
 window.renderStoc=renderStoc;
 // Backup
 window.backupManual=backupManual;
+window.flotaBackupManual=flotaBackupManual;
+window.flotaBackupExportLast=flotaBackupExportLast;
+window.flotaBackupExport=flotaBackupExport;
+window.flotaBackupDelete=flotaBackupDelete;
+window.flotaBackupRestore=flotaBackupRestore;
+window.flotaBackupRestoreFromFile=flotaBackupRestoreFromFile;
 window.backupExportLast=backupExportLast;
 window.backupExport=backupExport;
 window.backupDelete=backupDelete;
