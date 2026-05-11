@@ -1689,6 +1689,39 @@ async function doLogout(){
 // Variabilă globală pentru a ști dacă user-ul curent e admin
 let isAdminUser = false;
 
+// Deschide aplicația după autentificare și confirmare PIN
+function _showApp(){
+  if(currentMode === 'service'){
+    document.getElementById('app').style.display='none';
+    document.getElementById('app-service').style.display='';
+    document.getElementById('srv-user-name').textContent=currentUser.name;
+    document.getElementById('srv-user-avatar').textContent=initials(currentUser.name);
+    document.getElementById('srv-user-avatar').style.background=avc(currentUser.name)+'33';
+    document.getElementById('srv-user-avatar').style.color=avc(currentUser.name);
+    document.getElementById('mode-select').style.display='none';
+    setTimeout(async ()=>{
+      await requestNotificationPermission();
+      await initNotifications();
+      checkMorningBriefing();
+      checkGarantiiExpirare();
+      showNotifBannerIfNeeded();
+    }, 2000);
+  } else {
+    document.getElementById('app').style.display='';
+    document.getElementById('app-service').style.display='none';
+    document.getElementById('mode-select').style.display='none';
+    document.getElementById('user-name').textContent=currentUser.name;
+    document.getElementById('user-avatar').textContent=initials(currentUser.name);
+    document.getElementById('user-avatar').style.background=avc(currentUser.name)+'33';
+    document.getElementById('user-avatar').style.color=avc(currentUser.name);
+    try{
+      const user = window.fbAuth.currentUser;
+      document.getElementById('info-email').textContent=currentUser.username + (user&&user.email.includes(FAKE_DOMAIN)?'':' ('+(user?.email||'')+')');
+    }catch(e){}
+  }
+  startSync();
+}
+
 window.addEventListener('firebase-ready', ()=>{
   window.fbHelpers.onAuth(window.fbAuth, (user)=>{
     if(user){
@@ -1752,39 +1785,6 @@ window.addEventListener('firebase-ready', ()=>{
 
       // PIN confirmat sau admin — continuă cu app-ul normal
       _showApp();
-    }
-
-    function _showApp(){
-      if(currentMode === 'service'){
-        document.getElementById('app').style.display='none';
-        document.getElementById('app-service').style.display='';
-        document.getElementById('srv-user-name').textContent=currentUser.name;
-        document.getElementById('srv-user-avatar').textContent=initials(currentUser.name);
-        document.getElementById('srv-user-avatar').style.background=avc(currentUser.name)+'33';
-        document.getElementById('srv-user-avatar').style.color=avc(currentUser.name);
-        document.getElementById('mode-select').style.display='none';
-        // Notificări push și briefing de dimineață
-        setTimeout(async ()=>{
-          await requestNotificationPermission();
-          await initNotifications();
-          checkMorningBriefing();
-          checkGarantiiExpirare();
-          // Afișează banner dacă notificările nu sunt active
-          showNotifBannerIfNeeded();
-        }, 2000);
-      } else {
-        // Pornesc aplicația Flotă — ascund complet Service
-        document.getElementById('app').style.display='';
-        document.getElementById('app-service').style.display='none';
-        document.getElementById('mode-select').style.display='none';
-        document.getElementById('user-name').textContent=currentUser.name;
-        document.getElementById('user-avatar').textContent=initials(currentUser.name);
-        document.getElementById('user-avatar').style.background=avc(currentUser.name)+'33';
-        document.getElementById('user-avatar').style.color=avc(currentUser.name);
-        document.getElementById('info-email').textContent=currentUser.username + (user.email.includes(FAKE_DOMAIN)?'':' ('+user.email+')');
-      }
-      startSync();
-    } // end _showApp
     } else {
       document.getElementById('loading').style.display='none';
       document.getElementById('app').style.display='none';
