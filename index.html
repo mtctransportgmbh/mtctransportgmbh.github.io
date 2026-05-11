@@ -2313,6 +2313,7 @@ function cardDriverOpen(carId, event){
   const dd = document.createElement('div');
   dd.className = 'card-driver-dropdown';
   dd.id = 'cdd-'+carId;
+  dd.addEventListener('click', e=>e.stopPropagation()); // previne închiderea la click în dropdown
   dd.innerHTML = `
     <div class="card-driver-search-wrap">
       <div style="position:relative">
