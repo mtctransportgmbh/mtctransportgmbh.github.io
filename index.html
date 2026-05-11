@@ -2302,18 +2302,20 @@ let _cardDriverOpenId = null;
 
 function cardDriverOpen(carId, event){
   event.stopPropagation();
-  // Dacă același e deja deschis, îl închidem
   if(_cardDriverOpenId === carId){ cardDriverClose(); return; }
-  cardDriverClose(); // închide orice alt dropdown deschis
+  cardDriverClose();
   _cardDriverOpenId = carId;
   const m = masini.find(x=>x.id===carId);
   const wrap = document.getElementById('cdw-'+carId);
   if(!wrap) return;
 
+  // Calculăm poziția față de viewport și punem în body — evită overflow:hidden al cardului
+  const rect = wrap.getBoundingClientRect();
   const dd = document.createElement('div');
   dd.className = 'card-driver-dropdown';
   dd.id = 'cdd-'+carId;
-  dd.addEventListener('click', e=>e.stopPropagation()); // previne închiderea la click în dropdown
+  dd.style.cssText = `position:fixed;top:${rect.bottom+2}px;left:${rect.left}px;width:${rect.width}px;z-index:9999;`;
+  dd.addEventListener('click', e=>e.stopPropagation());
   dd.innerHTML = `
     <div class="card-driver-search-wrap">
       <div style="position:relative">
@@ -2322,7 +2324,7 @@ function cardDriverOpen(carId, event){
       </div>
     </div>
     <div class="card-driver-list" id="cdl-${carId}"></div>`;
-  wrap.appendChild(dd);
+  document.body.appendChild(dd);
 
   cardDriverRenderList(carId, '', m?.sofer||'');
 
