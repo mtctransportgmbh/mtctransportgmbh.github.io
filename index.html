@@ -108,6 +108,16 @@ button{font-family:inherit;}
 .driver-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
 .driver-select{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);font-family:var(--font);font-size:14px;padding:10px 30px 10px 12px;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;}
 .driver-select:focus{border-color:var(--accent);}
+.card-driver-wrap{position:relative;width:100%;}
+.card-driver-dropdown{position:absolute;top:100%;left:0;right:0;z-index:999;background:var(--surface2);border:1px solid var(--accent);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.5);margin-top:2px;overflow:hidden;}
+.card-driver-search-wrap{padding:8px;border-bottom:1px solid var(--border);}
+.card-driver-search{width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:calc(var(--radius) - 2px);color:var(--text);font-family:var(--font);font-size:13px;padding:7px 28px 7px 10px;outline:none;box-sizing:border-box;}
+.card-driver-search:focus{border-color:var(--accent);}
+.card-driver-list{max-height:200px;overflow-y:auto;}
+.card-driver-opt{padding:8px 12px;font-size:13px;cursor:pointer;color:var(--text);}
+.card-driver-opt:hover,.card-driver-opt.active{background:var(--surface);}
+.card-driver-opt.selected{color:var(--accent);font-weight:500;}
+.card-driver-sep{padding:4px 12px;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;border-top:1px solid var(--border);pointer-events:none;}
 .card-accent{position:absolute;top:0;left:0;width:3px;height:100%;}
 
 /* ── DISPONIBIL ────────────────────────────────────── */
@@ -1533,6 +1543,9 @@ let _pinPendingUser = null; // {username, displayName} așteptând PIN
 function pinScreensHide(){
   document.getElementById('pin-setup-screen').style.display='none';
   document.getElementById('pin-login-screen').style.display='none';
+  _pinPendingUser = null;
+  // Deschide app-ul după confirmare PIN
+  if(typeof _showApp === 'function') _showApp();
 }
 
 // Apelat după ce Firebase autentifică user-ul quick — verificăm dacă are PIN
@@ -1704,8 +1717,45 @@ window.addEventListener('firebase-ready', ()=>{
       document.getElementById('login-screen').style.display='none';
       document.getElementById('mode-select').style.display='none';
 
+      // Dacă e quick user (nu admin) și PIN-ul nu a fost confirmat încă în această sesiune,
+      // blocăm afișarea app-ului — afterQuickAuth va afișa ecranul PIN
+      const isQuickUser = QUICK_USERS_FLOTA.find(u=>u.username===username) || QUICK_USERS_SERVICE.find(u=>u.username===username);
+      if(isQuickUser && _pinPendingUser === null){
+        // afterQuickAuth nu a rulat încă sau nu a confirmat — lăsăm quickLogin să facă asta
+        // App-ul se va deschide din pinScreensHide() → care setează _pinPendingUser=null după confirmare
+        // Verificăm dacă user-ul are PIN in knownUsers
+        const ku = knownUsers.find(u=>u.username===username);
+        if(ku && !ku.pin){
+          // Fără PIN — arată setup
+          document.getElementById('pin-setup-screen').style.display='';
+          _pinPendingUser = {username, displayName: currentUser.name};
+          setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
+          return;
+        } else if(ku?.pin){
+          // Are PIN — arată login PIN
+          document.getElementById('pin-login-screen').style.display='';
+          document.getElementById('pin-login-title').textContent = 'Bun venit, ' + currentUser.name;
+          document.getElementById('pin-login-input').value='';
+          document.getElementById('pin-login-error').style.display='none';
+          _pinPendingUser = {username, displayName: currentUser.name};
+          setTimeout(()=>document.getElementById('pin-login-input')?.focus(), 100);
+          return;
+        }
+        // Dacă nu e în knownUsers încă (prima conectare absolută) — arată setup
+        if(!ku){
+          document.getElementById('pin-setup-screen').style.display='';
+          _pinPendingUser = {username, displayName: currentUser.name};
+          setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
+          return;
+        }
+      }
+
+      // PIN confirmat sau admin — continuă cu app-ul normal
+      _showApp();
+    }
+
+    function _showApp(){
       if(currentMode === 'service'){
-        // Pornesc aplicația Service — ascund complet Flotă
         document.getElementById('app').style.display='none';
         document.getElementById('app-service').style.display='';
         document.getElementById('srv-user-name').textContent=currentUser.name;
@@ -1734,6 +1784,7 @@ window.addEventListener('firebase-ready', ()=>{
         document.getElementById('info-email').textContent=currentUser.username + (user.email.includes(FAKE_DOMAIN)?'':' ('+user.email+')');
       }
       startSync();
+    } // end _showApp
     } else {
       document.getElementById('loading').style.display='none';
       document.getElementById('app').style.display='none';
@@ -2235,11 +2286,124 @@ function renderCards(){
       </div>
       <div class="nr-plate">${m.nr}</div>
       <div class="driver-label">Șofer curent</div>
-      <select class="driver-select" onchange="askChangeDriver(${m.id}, this.value)">${buildOpts(m.sofer||'')}</select>
+      <div class="card-driver-wrap" id="cdw-${m.id}">
+        <div class="driver-select" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between" onclick="cardDriverOpen(${m.id}, event)">
+          <span id="cdv-${m.id}">${m.sofer||'— nealocat —'}</span>
+          <svg width="10" height="6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#888" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+      </div>
     </div>`;
   }).join('');
   updateStats();
 }
+
+// ── CUSTOM DROPDOWN CU SEARCH ÎN CARD ───────────────────────────────
+let _cardDriverOpenId = null;
+
+function cardDriverOpen(carId, event){
+  event.stopPropagation();
+  // Dacă același e deja deschis, îl închidem
+  if(_cardDriverOpenId === carId){ cardDriverClose(); return; }
+  cardDriverClose(); // închide orice alt dropdown deschis
+  _cardDriverOpenId = carId;
+  const m = masini.find(x=>x.id===carId);
+  const wrap = document.getElementById('cdw-'+carId);
+  if(!wrap) return;
+
+  const dd = document.createElement('div');
+  dd.className = 'card-driver-dropdown';
+  dd.id = 'cdd-'+carId;
+  dd.innerHTML = `
+    <div class="card-driver-search-wrap">
+      <div style="position:relative">
+        <input class="card-driver-search" id="cds-${carId}" placeholder="🔍 caută șofer..." autocomplete="off">
+        <button id="cdsc-${carId}" onclick="cardDriverClearSearch(${carId})" style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:2px;display:none">✕</button>
+      </div>
+    </div>
+    <div class="card-driver-list" id="cdl-${carId}"></div>`;
+  wrap.appendChild(dd);
+
+  cardDriverRenderList(carId, '', m?.sofer||'');
+
+  const inp = document.getElementById('cds-'+carId);
+  inp.addEventListener('input', ()=>{
+    const q = inp.value;
+    document.getElementById('cdsc-'+carId).style.display = q ? '' : 'none';
+    cardDriverRenderList(carId, q, m?.sofer||'');
+  });
+  inp.addEventListener('keydown', e=>{ if(e.key==='Escape') cardDriverClose(); });
+  setTimeout(()=>inp.focus(), 50);
+}
+
+function cardDriverClearSearch(carId){
+  const inp = document.getElementById('cds-'+carId);
+  if(inp){ inp.value=''; inp.focus(); }
+  document.getElementById('cdsc-'+carId).style.display='none';
+  const m = masini.find(x=>x.id===carId);
+  cardDriverRenderList(carId, '', m?.sofer||'');
+}
+
+function cardDriverRenderList(carId, q, current){
+  const listEl = document.getElementById('cdl-'+carId);
+  if(!listEl) return;
+  const ql = q.toLowerCase();
+  const soferiList = soferi.map(s=> typeof s==='string'?{name:s,location:''}:s);
+
+  const specials = [
+    {name:'DEPOZIT'},{name:'POLLING'},{name:'AVP'},
+    {name:'STRICATA',label:'🔧 STRICATĂ'},{name:'',label:'— nealocat —'}
+  ];
+
+  function optHtml(name, label, isSep){
+    if(isSep) return `<div class="card-driver-sep">${label}</div>`;
+    const lbl = label||name||'— nealocat —';
+    const isSel = (name||'') === (current||'');
+    return `<div class="card-driver-opt${isSel?' selected':''}" onclick="cardDriverSelect(${carId},'${(name||'').replace(/'/g,"\\'")}','${lbl.replace(/'/g,"\\'")}') ">${lbl}</div>`;
+  }
+
+  let html = '';
+  if(ql){
+    const matchSpec = specials.filter(s=>(s.label||s.name).toLowerCase().includes(ql));
+    const matchSof = soferiList.filter(s=>s.name.toLowerCase().includes(ql));
+    if(!matchSpec.length && !matchSof.length){
+      html = '<div style="padding:10px 12px;font-size:13px;color:var(--text3);font-style:italic">Niciun rezultat</div>';
+    } else {
+      matchSpec.forEach(s=>{ html+=optHtml(s.name, s.label); });
+      matchSof.forEach(s=>{ html+=optHtml(s.name, s.name+(s.location?' ('+s.location+')':'')); });
+    }
+  } else {
+    specials.forEach(s=>{ html+=optHtml(s.name, s.label); });
+    const eisel = soferiList.filter(s=>s.location==='Eiselfing').sort((a,b)=>a.name.localeCompare(b.name));
+    const ruhst = soferiList.filter(s=>s.location==='Ruhstorf').sort((a,b)=>a.name.localeCompare(b.name));
+    const paket = soferiList.filter(s=>s.location==='Paketshop').sort((a,b)=>a.name.localeCompare(b.name));
+    const other = soferiList.filter(s=>!s.location||(s.location!=='Eiselfing'&&s.location!=='Ruhstorf'&&s.location!=='Paketshop')).sort((a,b)=>a.name.localeCompare(b.name));
+    if(eisel.length){ html+=optHtml('','── EISELFING ──',true); eisel.forEach(s=>{html+=optHtml(s.name);}); }
+    if(ruhst.length){ html+=optHtml('','── RUHSTORF ──',true); ruhst.forEach(s=>{html+=optHtml(s.name);}); }
+    if(paket.length){ html+=optHtml('','── PAKETSHOP ──',true); paket.forEach(s=>{html+=optHtml(s.name);}); }
+    if(other.length){ html+=optHtml('','── ALȚII ──',true); other.forEach(s=>{html+=optHtml(s.name);}); }
+  }
+  listEl.innerHTML = html;
+}
+
+function cardDriverSelect(carId, value, label){
+  cardDriverClose();
+  // Actualizează textul din butonul dropdown
+  const cdv = document.getElementById('cdv-'+carId);
+  if(cdv) cdv.textContent = label||value||'— nealocat —';
+  // Declanșează schimbarea (exact ca selectul vechi)
+  askChangeDriver(carId, value);
+}
+
+function cardDriverClose(){
+  if(_cardDriverOpenId !== null){
+    const old = document.getElementById('cdd-'+_cardDriverOpenId);
+    if(old) old.remove();
+    _cardDriverOpenId = null;
+  }
+}
+
+// Închide dropdown la click în altă parte
+document.addEventListener('click', ()=>cardDriverClose());
 
 // ── SCHIMBĂ ȘOFER ────────────────────────────────────────────────────
 function askChangeDriver(carId, newDriver){
@@ -2757,7 +2921,12 @@ function renderStricate(){
         <div style="font-family:var(--mono);font-size:13px;color:var(--text);margin-bottom:8px">${since}</div>
         <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Marcată de</div>
         <div style="font-size:13px;color:var(--text2);margin-bottom:12px">${by}</div>
-        <select class="driver-select" onchange="askChangeDriver(${m.id}, this.value)">${buildOpts(m.sofer||'')}</select>
+        <div class="card-driver-wrap" id="cdw-${m.id}">
+        <div class="driver-select" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between" onclick="cardDriverOpen(${m.id}, event)">
+          <span id="cdv-${m.id}">${m.sofer||'— nealocat —'}</span>
+          <svg width="10" height="6" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1 1l4 4 4-4" stroke="#888" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </div>
+      </div>
       </div>`;
     }).join('')+'</div>';
 }
@@ -4950,18 +5119,20 @@ document.getElementById('srv-modal-edit').addEventListener('click', e=>{
 
 // ── TABS ─────────────────────────────────────────────────────────────
 function showTab(name){
-  ['masini','disponibil','log','amenda','soferi','setari','stricate','admin'].forEach(t=>{
+  ['masini','disponibil','log','amenda','soferi','setari','stricate','admin','backup-flota'].forEach(t=>{
     const el=document.getElementById('tab-'+t);
     if(el) el.style.display=t===name?'':'none';
   });
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  const tabBtns=document.querySelectorAll('.tab-btn');
-  const idx=['masini','disponibil','log','amenda','soferi','setari','stricate','admin'].indexOf(name);
-  if(idx>=0 && tabBtns[idx]) tabBtns[idx].classList.add('active');
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    const onclick = b.getAttribute('onclick');
+    if(onclick && onclick.includes(`'${name}'`)) b.classList.add('active');
+  });
   document.getElementById('toolbar-masini').style.display=name==='masini'?'':'none';
-  if(name==='setari')renderSetari();
-  if(name==='admin')renderAdmin();
-  if(name==='stricate')renderStricate();
+  if(name==='setari') renderSetari();
+  if(name==='admin') renderAdmin();
+  if(name==='stricate') renderStricate();
+  if(name==='backup-flota'){ renderFlotaBackupList(); updateFlotaBackupBanner(); }
 }
 
 // ── CLOSE MODAL PE OVERLAY ───────────────────────────────────────────
