@@ -1530,13 +1530,16 @@ function renderLoginUserButtons(){
 // Login rapid pentru Cristi/Mihaela/Raluca — încearcă să se logheze, dacă userul nu există îl creează automat
 // ── PIN LOGIC ─────────────────────────────────────────────────
 let _pinPendingUser = null; // {username, displayName} așteptând PIN
-let _pinConfirmedUsers = new Set(); // useri care și-au confirmat PIN în sesiunea curentă
+// sessionStorage supraviețuiește în același tab chiar dacă onAuthStateChanged se re-declanșează
+function _isPinConfirmed(username){ try{ return sessionStorage.getItem('pin_ok_'+username)==='1'; }catch(e){ return false; } }
+function _setPinConfirmed(username){ try{ sessionStorage.setItem('pin_ok_'+username,'1'); }catch(e){} }
+function _clearPinConfirmed(username){ try{ sessionStorage.removeItem('pin_ok_'+username); }catch(e){} }
 
 function pinScreensHide(){
   document.getElementById('pin-setup-screen').style.display='none';
   document.getElementById('pin-login-screen').style.display='none';
   // _pinConfirmedUsers.add e făcut explicit în pinLoginConfirm/pinSetupConfirm înainte de apel
-  if(_pinPendingUser) _pinConfirmedUsers.add(_pinPendingUser.username);
+  if(_pinPendingUser) _setPinConfirmed(_pinPendingUser.username);
   _pinPendingUser = null;
   if(typeof _showApp === 'function') _showApp();
 }
@@ -1608,7 +1611,7 @@ function pinLoginConfirm(){
     || knownUsers.find(u=>u.name && uDisplay && u.name.toLowerCase()===uDisplay.toLowerCase() && u.pin);
   if(!ku?.pin){
     // Nu are PIN setat deloc — trece direct (nu mai cerem setup din nou)
-    if(uname) _pinConfirmedUsers.add(uname);
+    if(uname) _setPinConfirmed(uname);
     pinScreensHide();
     return;
   }
@@ -1621,7 +1624,7 @@ function pinLoginConfirm(){
   }
   // PIN corect
   ku.lastSeen = new Date().toISOString();
-  if(uname) _pinConfirmedUsers.add(uname); // marchează explicit înainte de pinScreensHide
+  if(uname) _setPinConfirmed(uname); // marchează explicit înainte de pinScreensHide
   saveToCloud();
   pinScreensHide();
   toast('✓ Autentificat');
@@ -1702,6 +1705,9 @@ async function doLogout(){
   if(!confirm('Ieși din cont?'))return;
   currentMode = null;
   try{ localStorage.removeItem('mtc_selected_mode'); }catch(e){}
+  // Curăță confirmările PIN la logout
+  if(currentUser?.username) _clearPinConfirmed(currentUser.username);
+  try{ sessionStorage.clear(); }catch(e){}
   await window.fbHelpers.signOut(window.fbAuth);
   location.reload();
 }
@@ -1774,7 +1780,7 @@ window.addEventListener('firebase-ready', ()=>{
       // blocăm afișarea app-ului — afterQuickAuth va afișa ecranul PIN
       const isQuickUser = QUICK_USERS_FLOTA.find(u=>u.username===username) || QUICK_USERS_SERVICE.find(u=>u.username===username);
       // Dacă e quick user și nu a confirmat PIN în sesiunea curentă — cerem PIN
-      if(isQuickUser && !_pinConfirmedUsers.has(username)){
+      if(isQuickUser && !_isPinConfirmed(username)){
         // Trebuie să avem knownUsers încărcat înainte de a verifica PIN-ul
         // Facem un fetch rapid din Firestore înainte de a arăta ecranul PIN
         let pinCheckKu = knownUsers.find(u=>u.username===username)
