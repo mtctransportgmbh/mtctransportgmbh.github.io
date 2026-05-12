@@ -1222,7 +1222,7 @@ body.user-mode .log-mobile-card {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updateProfile, setPersistence, browserLocalPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot, enableIndexedDbPersistence }
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, enableIndexedDbPersistence }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getMessaging, getToken, onMessage }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
@@ -1264,6 +1264,7 @@ if (!firebaseConfig || !firebaseConfig.apiKey) {
     onAuth: onAuthStateChanged,
     updateProfile,
     setDoc,
+    getDoc,
     onSnapshot
   };
 
@@ -1529,12 +1530,13 @@ function renderLoginUserButtons(){
 // Login rapid pentru Cristi/Mihaela/Raluca — încearcă să se logheze, dacă userul nu există îl creează automat
 // ── PIN LOGIC ─────────────────────────────────────────────────
 let _pinPendingUser = null; // {username, displayName} așteptând PIN
+let _pinConfirmedUsers = new Set(); // useri care și-au confirmat PIN în sesiunea curentă
 
 function pinScreensHide(){
   document.getElementById('pin-setup-screen').style.display='none';
   document.getElementById('pin-login-screen').style.display='none';
+  if(_pinPendingUser) _pinConfirmedUsers.add(_pinPendingUser.username);
   _pinPendingUser = null;
-  // Deschide app-ul după confirmare PIN
   if(typeof _showApp === 'function') _showApp();
 }
 
@@ -1631,16 +1633,23 @@ async function quickLogin(username, displayName){
     } catch(e){
       // Userul probabil nu există încă — îl creăm
       if(e.code==='auth/invalid-credential' || e.code==='auth/user-not-found' || e.code==='auth/wrong-password'){
-        const cred = await window.fbHelpers.signUp(window.fbAuth, email, QUICK_USER_PASSWORD);
-        await window.fbHelpers.updateProfile(cred.user, { displayName });
+        try{
+          const cred = await window.fbHelpers.signUp(window.fbAuth, email, QUICK_USER_PASSWORD);
+          await window.fbHelpers.updateProfile(cred.user, { displayName });
+        } catch(signUpErr){
+          // Contul există deja dar cu altă parolă — nu putem face nimic din client
+          // (parola e setată de admin) — arătăm eroare clară
+          if(signUpErr.code==='auth/email-already-in-use'){
+            // Contul există dar cu altă parolă — încearcă cu parola default veche dacă există
+            throw new Error('Eroare conectare: contul există cu altă parolă. Admin: resetează parola în Firebase Console pentru ' + email + ' la: ' + QUICK_USER_PASSWORD);
+          }
+          throw signUpErr;
+        }
       } else {
         throw e;
       }
     }
-    // Firebase login reușit — verificăm PIN (knownUsers e disponibil după loadFromCloud)
-    // Folosim un mic delay ca loadFromCloud să se termine
-    setTimeout(()=>afterQuickAuth(username, displayName), 800);
-    return; // nu mai facem nimic — afterQuickAuth decide ce urmează
+    // Firebase login reușit — onAuthStateChanged se declanșează automat și gestionează PIN
   } catch(e){
     let msg = 'Nu m-am putut conecta';
     if(e.code==='auth/network-request-failed') msg='Fără conexiune la internet';
@@ -1753,34 +1762,46 @@ window.addEventListener('firebase-ready', ()=>{
       // Dacă e quick user (nu admin) și PIN-ul nu a fost confirmat încă în această sesiune,
       // blocăm afișarea app-ului — afterQuickAuth va afișa ecranul PIN
       const isQuickUser = QUICK_USERS_FLOTA.find(u=>u.username===username) || QUICK_USERS_SERVICE.find(u=>u.username===username);
-      if(isQuickUser && _pinPendingUser === null){
-        // afterQuickAuth nu a rulat încă sau nu a confirmat — lăsăm quickLogin să facă asta
-        // App-ul se va deschide din pinScreensHide() → care setează _pinPendingUser=null după confirmare
-        // Verificăm dacă user-ul are PIN in knownUsers
-        const ku = knownUsers.find(u=>u.username===username);
-        if(ku && !ku.pin){
-          // Fără PIN — arată setup
-          document.getElementById('pin-setup-screen').style.display='';
-          _pinPendingUser = {username, displayName: currentUser.name};
-          setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
-          return;
-        } else if(ku?.pin){
-          // Are PIN — arată login PIN
-          document.getElementById('pin-login-screen').style.display='';
-          document.getElementById('pin-login-title').textContent = 'Bun venit, ' + currentUser.name;
-          document.getElementById('pin-login-input').value='';
-          document.getElementById('pin-login-error').style.display='none';
-          _pinPendingUser = {username, displayName: currentUser.name};
-          setTimeout(()=>document.getElementById('pin-login-input')?.focus(), 100);
-          return;
+      // Dacă e quick user și nu a confirmat PIN în sesiunea curentă — cerem PIN
+      if(isQuickUser && !_pinConfirmedUsers.has(username)){
+        // Trebuie să avem knownUsers încărcat înainte de a verifica PIN-ul
+        // Facem un fetch rapid din Firestore înainte de a arăta ecranul PIN
+        let pinCheckKu = knownUsers.find(u=>u.username===username)
+          || knownUsers.find(u=>u.name && currentUser.name && u.name.toLowerCase()===currentUser.name.toLowerCase() && u.pin);
+
+        const doPinCheck = (ku) => {
+          if(ku?.pin){
+            document.getElementById('pin-login-screen').style.display='';
+            document.getElementById('pin-login-title').textContent = 'Bun venit, ' + currentUser.name;
+            document.getElementById('pin-login-input').value='';
+            document.getElementById('pin-login-error').style.display='none';
+            _pinPendingUser = {username, displayName: currentUser.name};
+            setTimeout(()=>document.getElementById('pin-login-input')?.focus(), 100);
+          } else {
+            document.getElementById('pin-setup-screen').style.display='';
+            _pinPendingUser = {username, displayName: currentUser.name};
+            setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
+          }
+        };
+
+        if(pinCheckKu !== undefined || knownUsers.length > 0){
+          // knownUsers deja încărcat
+          doPinCheck(pinCheckKu);
+        } else {
+          // knownUsers nu e încă disponibil — citim direct din Firestore o singură dată
+          document.getElementById('loading').style.display='';
+          window.fbHelpers.getDoc(window.fbDocRef).then(snap=>{
+            document.getElementById('loading').style.display='none';
+            if(snap.exists()){
+              const d = snap.data();
+              hydrateFromCloud(d);
+            }
+            const ku2 = knownUsers.find(u=>u.username===username)
+              || knownUsers.find(u=>u.name && currentUser.name && u.name.toLowerCase()===currentUser.name.toLowerCase() && u.pin);
+            doPinCheck(ku2);
+          }).catch(()=>{ doPinCheck(null); });
         }
-        // Dacă nu e în knownUsers încă (prima conectare absolută) — arată setup
-        if(!ku){
-          document.getElementById('pin-setup-screen').style.display='';
-          _pinPendingUser = {username, displayName: currentUser.name};
-          setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
-          return;
-        }
+        return;
       }
 
       // PIN confirmat sau admin — continuă cu app-ul normal
@@ -1829,15 +1850,9 @@ function startSync(){
     } else {
       saveToCloud();
     }
-    // Ascunde loading și afișează aplicația CORECTĂ în funcție de modul
+    // Ascunde loading — app-ul e deja vizibil (deschis din _showApp după PIN)
     document.getElementById('loading').style.display='none';
-    if(currentMode === 'service'){
-      document.getElementById('app').style.display='none';
-      document.getElementById('app-service').style.display='';
-    } else {
-      document.getElementById('app').style.display='';
-      document.getElementById('app-service').style.display='none';
-    }
+    renderAll();
   }, (err)=>{
     console.error(err);
     document.getElementById('loading').innerHTML=`<div style="padding:20px;text-align:center;max-width:400px"><div style="color:var(--danger);font-size:14px;margin-bottom:10px">Eroare conexiune</div><div style="font-size:12px;color:var(--text2)">${err.message}</div><div style="margin-top:14px;font-size:12px;color:var(--text3)">Verifică ghidul de instalare — probabil regulile Firestore nu sunt setate.</div></div>`;
