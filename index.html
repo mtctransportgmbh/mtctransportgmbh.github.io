@@ -1535,6 +1535,7 @@ let _pinConfirmedUsers = new Set(); // useri care și-au confirmat PIN în sesiu
 function pinScreensHide(){
   document.getElementById('pin-setup-screen').style.display='none';
   document.getElementById('pin-login-screen').style.display='none';
+  // _pinConfirmedUsers.add e făcut explicit în pinLoginConfirm/pinSetupConfirm înainte de apel
   if(_pinPendingUser) _pinConfirmedUsers.add(_pinPendingUser.username);
   _pinPendingUser = null;
   if(typeof _showApp === 'function') _showApp();
@@ -1600,8 +1601,17 @@ function pinLoginConfirm(){
   const pin = document.getElementById('pin-login-input').value.trim();
   const errEl = document.getElementById('pin-login-error');
   errEl.style.display='none';
-  const ku = knownUsers.find(u=>u.username===_pinPendingUser?.username);
-  if(!ku?.pin){ pinScreensHide(); return; } // fallback - nu are pin, lasă să intre
+  const uname = _pinPendingUser?.username;
+  const uDisplay = _pinPendingUser?.displayName;
+  // Căutăm PIN după username SAU după name (cross-app sync)
+  const ku = knownUsers.find(u=>u.username===uname && u.pin)
+    || knownUsers.find(u=>u.name && uDisplay && u.name.toLowerCase()===uDisplay.toLowerCase() && u.pin);
+  if(!ku?.pin){
+    // Nu are PIN setat deloc — trece direct (nu mai cerem setup din nou)
+    if(uname) _pinConfirmedUsers.add(uname);
+    pinScreensHide();
+    return;
+  }
   if(pin !== ku.pin){
     errEl.textContent='PIN greșit. Încearcă din nou.';
     errEl.style.display='';
@@ -1611,6 +1621,7 @@ function pinLoginConfirm(){
   }
   // PIN corect
   ku.lastSeen = new Date().toISOString();
+  if(uname) _pinConfirmedUsers.add(uname); // marchează explicit înainte de pinScreensHide
   saveToCloud();
   pinScreensHide();
   toast('✓ Autentificat');
