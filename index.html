@@ -1527,13 +1527,26 @@ function renderLoginUserButtons(){
   `).join('');
 }
 
-// Login rapid pentru Cristi/Mihaela/Raluca — încearcă să se logheze, dacă userul nu există îl creează automat
 // ── PIN LOGIC ─────────────────────────────────────────────────
 let _pinPendingUser = null; // {username, displayName} așteptând PIN
-// sessionStorage supraviețuiește în același tab chiar dacă onAuthStateChanged se re-declanșează
-function _isPinConfirmed(username){ try{ return sessionStorage.getItem('pin_ok_'+username)==='1'; }catch(e){ return false; } }
-function _setPinConfirmed(username){ try{ sessionStorage.setItem('pin_ok_'+username,'1'); }catch(e){} }
-function _clearPinConfirmed(username){ try{ sessionStorage.removeItem('pin_ok_'+username); }catch(e){} }
+
+// PIN confirmat rămâne valid 24 ore (o dată pe zi)
+const PIN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ore
+
+function _isPinConfirmed(username){
+  try{
+    const raw = localStorage.getItem('pin_ok_'+username);
+    if(!raw) return false;
+    const { ts } = JSON.parse(raw);
+    return (Date.now() - ts) < PIN_EXPIRY_MS;
+  }catch(e){ return false; }
+}
+function _setPinConfirmed(username){
+  try{ localStorage.setItem('pin_ok_'+username, JSON.stringify({ts: Date.now()})); }catch(e){}
+}
+function _clearPinConfirmed(username){
+  try{ localStorage.removeItem('pin_ok_'+username); }catch(e){}
+}
 
 function pinScreensHide(){
   document.getElementById('pin-setup-screen').style.display='none';
