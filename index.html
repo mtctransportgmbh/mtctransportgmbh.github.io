@@ -1536,9 +1536,11 @@ const PIN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ore
 function _isPinConfirmed(username){
   try{
     const raw = localStorage.getItem('pin_ok_'+username);
-    if(!raw) return false;
+    if(!raw) { console.log('[PIN] Nu există localStorage pentru', username); return false; }
     const { ts } = JSON.parse(raw);
-    return (Date.now() - ts) < PIN_EXPIRY_MS;
+    const valid = (Date.now() - ts) < PIN_EXPIRY_MS;
+    console.log('[PIN] localStorage există pentru', username, '- valid:', valid, '- vârstă:', Math.round((Date.now()-ts)/3600000)+'h');
+    return valid;
   }catch(e){ return false; }
 }
 function _setPinConfirmed(username){
