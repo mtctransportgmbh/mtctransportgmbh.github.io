@@ -1794,6 +1794,7 @@ window.addEventListener('firebase-ready', ()=>{
       // Dacă e quick user (nu admin) și PIN-ul nu a fost confirmat încă în această sesiune,
       // blocăm afișarea app-ului — afterQuickAuth va afișa ecranul PIN
       const isQuickUser = QUICK_USERS_FLOTA.find(u=>u.username===username) || QUICK_USERS_SERVICE.find(u=>u.username===username);
+      console.log('[PIN] isQuickUser:', !!isQuickUser, 'username:', username, '_isPinConfirmed:', _isPinConfirmed(username));
       // Dacă e quick user și nu a confirmat PIN în sesiunea curentă — cerem PIN
       if(isQuickUser && !_isPinConfirmed(username)){
         // Trebuie să avem knownUsers încărcat înainte de a verifica PIN-ul
