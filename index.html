@@ -1559,14 +1559,26 @@ function pinScreensHide(){
 
 // Apelat după ce Firebase autentifică user-ul quick — verificăm dacă are PIN
 async function afterQuickAuth(username, displayName){
-  // Căutăm PIN după username SAU după name — sincronizare cross-app (flotă↔service)
-  // Ex: cristi (flotă) și cristi-srv (service) au același name "Cristi" → același PIN
-  const ku = knownUsers.find(u=>u.username===username)
-    || knownUsers.find(u=>u.name && displayName && u.name.toLowerCase()===displayName.toLowerCase() && u.pin);
   _pinPendingUser = {username, displayName};
 
+  // Încearcă mai întâi din memorie (dacă datele sunt deja încărcate)
+  let ku = knownUsers.find(u=>u.username===username)
+    || knownUsers.find(u=>u.name && displayName && u.name.toLowerCase()===displayName.toLowerCase() && u.pin);
+
+  // Dacă knownUsers e gol (date neîncărcate încă), citim direct din Firestore
+  if(!ku && knownUsers.length === 0){
+    try{
+      const snap = await window.fbHelpers.getDoc(window.fbDocRef);
+      if(snap.exists()){
+        const d = snap.data();
+        const ku2 = (d.knownUsers||[]).find(u=>u.username===username)
+          || (d.knownUsers||[]).find(u=>u.name && displayName && u.name.toLowerCase()===displayName.toLowerCase() && u.pin);
+        ku = ku2;
+      }
+    }catch(e){ console.log('afterQuickAuth getDoc error:', e.message); }
+  }
+
   if(!ku?.pin){
-    // Prima conectare — arată setup PIN
     document.getElementById('login-screen').style.display='none';
     document.getElementById('pin-setup-screen').style.display='';
     document.getElementById('pin-setup-1').value='';
@@ -1574,7 +1586,6 @@ async function afterQuickAuth(username, displayName){
     document.getElementById('pin-setup-error').style.display='none';
     setTimeout(()=>document.getElementById('pin-setup-1')?.focus(), 100);
   } else {
-    // Are PIN — arată ecranul de login PIN
     document.getElementById('login-screen').style.display='none';
     document.getElementById('pin-login-screen').style.display='';
     document.getElementById('pin-login-title').textContent = 'Bun venit, ' + displayName;
