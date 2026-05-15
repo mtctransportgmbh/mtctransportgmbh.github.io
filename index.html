@@ -1595,7 +1595,7 @@ async function afterQuickAuth(username, displayName){
   }
 }
 
-function pinSetupConfirm(){
+async function pinSetupConfirm(){
   const p1 = document.getElementById('pin-setup-1').value.trim();
   const p2 = document.getElementById('pin-setup-2').value.trim();
   const errEl = document.getElementById('pin-setup-error');
@@ -1603,24 +1603,43 @@ function pinSetupConfirm(){
   if(p1.length !== 6){ errEl.textContent='PIN-ul trebuie să aibă exact 6 cifre'; errEl.style.display=''; return; }
   if(!/^\d{6}$/.test(p1)){ errEl.textContent='PIN-ul trebuie să conțină doar cifre'; errEl.style.display=''; return; }
   if(p1 !== p2){ errEl.textContent='PIN-urile nu coincid'; errEl.style.display=''; return; }
-  // Salvăm PIN în knownUsers — și sincronizăm toate intrările cu același name (cross-app)
+
   const uname = _pinPendingUser?.username;
   const uDisplayName = _pinPendingUser?.displayName;
-  let found = false;
-  knownUsers.forEach(u => {
-    if(u.username === uname){
-      u.pin = p1; found = true;
-    } else if(uDisplayName && u.name && u.name.toLowerCase() === uDisplayName.toLowerCase()){
-      // Același user din cealaltă aplicație — sincronizăm PIN-ul
-      u.pin = p1;
-    }
-  });
-  if(!found && _pinPendingUser){
-    knownUsers.push({username: uname, name: uDisplayName, pin: p1, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString()});
-  }
-  // Marchează PIN confirmat ÎNAINTE de saveToCloud (care declanșează onSnapshot)
+
+  // Marchează PIN confirmat ÎNAINTE de orice salvare
   if(uname) _setPinConfirmed(uname);
-  saveToCloud();
+
+  // Citim datele ACTUALE din Firestore ca să nu suprasciem cu date vechi
+  try {
+    const snap = await window.fbHelpers.getDoc(window.fbDocRef);
+    if(snap.exists()){
+      const d = snap.data();
+      const ku = d.knownUsers || [];
+      let found = false;
+      ku.forEach(u => {
+        if(u.username === uname){ u.pin = p1; found = true; }
+        else if(uDisplayName && u.name && u.name.toLowerCase() === uDisplayName.toLowerCase()){ u.pin = p1; }
+      });
+      if(!found){ ku.push({username: uname, name: uDisplayName, pin: p1, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString()}); }
+      // Salvăm direct în Firestore
+      await window.fbHelpers.setDoc(window.fbDocRef, {...d, knownUsers: ku, lastModifiedBy: uname, lastModifiedAt: new Date().toISOString()});
+      // Actualizăm și memoria locală
+      knownUsers.length = 0;
+      ku.forEach(u => knownUsers.push(u));
+    }
+  } catch(e) {
+    console.error('pinSetupConfirm save error:', e.message);
+    // Fallback — salvare normală
+    let found = false;
+    knownUsers.forEach(u => {
+      if(u.username === uname){ u.pin = p1; found = true; }
+      else if(uDisplayName && u.name && u.name.toLowerCase() === uDisplayName.toLowerCase()){ u.pin = p1; }
+    });
+    if(!found) knownUsers.push({username: uname, name: uDisplayName, pin: p1, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString()});
+    saveToCloud();
+  }
+
   pinScreensHide();
   toast('✓ PIN setat cu succes');
 }
