@@ -1536,11 +1536,9 @@ const PIN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 ore
 function _isPinConfirmed(username){
   try{
     const raw = localStorage.getItem('pin_ok_'+username);
-    if(!raw) { console.log('[PIN] Nu există localStorage pentru', username); return false; }
+    if(!raw) return false;
     const { ts } = JSON.parse(raw);
-    const valid = (Date.now() - ts) < PIN_EXPIRY_MS;
-    console.log('[PIN] localStorage există pentru', username, '- valid:', valid, '- vârstă:', Math.round((Date.now()-ts)/3600000)+'h');
-    return valid;
+    return (Date.now() - ts) < PIN_EXPIRY_MS;
   }catch(e){ return false; }
 }
 function _setPinConfirmed(username){
@@ -1609,9 +1607,10 @@ function pinSetupConfirm(){
   if(!found && _pinPendingUser){
     knownUsers.push({username: uname, name: uDisplayName, pin: p1, firstSeen: new Date().toISOString(), lastSeen: new Date().toISOString()});
   }
+  // Marchează PIN confirmat ÎNAINTE de saveToCloud (care declanșează onSnapshot)
+  if(uname) _setPinConfirmed(uname);
   saveToCloud();
   pinScreensHide();
-  // Continuăm cu app-ul — onAuthStateChanged deja a rulat, deci app-ul e gata
   toast('✓ PIN setat cu succes');
 }
 
@@ -1794,8 +1793,6 @@ window.addEventListener('firebase-ready', ()=>{
       // Dacă e quick user (nu admin) și PIN-ul nu a fost confirmat încă în această sesiune,
       // blocăm afișarea app-ului — afterQuickAuth va afișa ecranul PIN
       const isQuickUser = QUICK_USERS_FLOTA.find(u=>u.username===username) || QUICK_USERS_SERVICE.find(u=>u.username===username);
-      console.log('[PIN] isQuickUser:', !!isQuickUser, 'username:', username, '_isPinConfirmed:', _isPinConfirmed(username));
-      // Dacă e quick user și nu a confirmat PIN în sesiunea curentă — cerem PIN
       if(isQuickUser && !_isPinConfirmed(username)){
         // Trebuie să avem knownUsers încărcat înainte de a verifica PIN-ul
         // Facem un fetch rapid din Firestore înainte de a arăta ecranul PIN
