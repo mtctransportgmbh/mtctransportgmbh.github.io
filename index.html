@@ -1354,7 +1354,7 @@ function isSrvSef(){
   return !isSrvMecanic();
 }
 
-const SPECIALS=['DEPOZIT','POLLING','EISELFING','AVP','PAKETSHOP','STRICATA'];
+const SPECIALS=['DEPOZIT','POLLING','EISELFING','AVP','STRICATA'];
 
 // ── HELPERS ──────────────────────────────────────────────────────────
 function sk(sofer){
@@ -1364,12 +1364,11 @@ function sk(sofer){
   if(u==='POLLING') return 'POLLING';
   if(u==='EISELFING') return 'EISELFING';
   if(u==='AVP') return 'AVP';
-  if(u==='PAKETSHOP') return 'PAKETSHOP';
   if(u==='STRICATA') return 'STRICATA';
   return 'OUT';
 }
 function sc(sofer){
-  const m={DEPOZIT:'#c8f542',POLLING:'#4a9eff',EISELFING:'#a78bfa',AVP:'#ff4a8d',PAKETSHOP:'#b04aff',STRICATA:'#ff5a5a',OUT:'#ff9f4a',NONE:'#444'};
+  const m={DEPOZIT:'#c8f542',POLLING:'#4a9eff',EISELFING:'#a78bfa',AVP:'#ff4a8d',STRICATA:'#ff5a5a',OUT:'#ff9f4a',NONE:'#444'};
   return m[sk(sofer)]||'#444';
 }
 const initials=n=>{const p=(n||'').split(' ').filter(Boolean);return p.length>=2?(p[0][0]+p[p.length-1][0]).toUpperCase():(p[0]||'?').slice(0,2).toUpperCase();};
@@ -1381,9 +1380,7 @@ function fmtDtInput(d){if(!d)return'';const p=n=>String(n).padStart(2,'0');retur
 function getMasinaLocation(m){
   if(!m) return '';
   const sofer = m.sofer || '';
-  // Categoria specială EISELFING = sediul Eiselfing
   if(sofer.toUpperCase() === 'EISELFING') return 'Eiselfing';
-  // Caut șoferul în listă
   const s = soferi.find(x => x.name === sofer);
   if(s) return s.location || '';
   return '';
@@ -2319,7 +2316,8 @@ function renderCards(){
     } else if(currentFilter==='OUT'){
       if(sk(m.sofer)!=='OUT') return false;
     } else if(currentFilter==='PAKETSHOP'){
-      if(sk(m.sofer)!=='PAKETSHOP') return false;
+      // Paketshop = mașini conduse de șoferi marcați cu locația Paketshop
+      if(getMasinaLocation(m)!=='Paketshop') return false;
     } else if(currentFilter==='EISELFING_LOC'){
       // Eiselfing = mașini la sediul EISELFING SAU la șoferi marcați Eiselfing
       if(getMasinaLocation(m) !== 'Eiselfing') return false;
@@ -2739,7 +2737,9 @@ function renderDisponibil(){
   // Secțiunea Paketshop — mașini cu sofer=PAKETSHOP + șoferi atribuiți
   const paketshopSec = document.getElementById('paketshop-section');
   if(!paketshopSec) return;
-  const pMasini = masini.filter(m=>sk(m.sofer)==='PAKETSHOP').sort((a,b)=>(a.nr||'').localeCompare(b.nr||''));
+  const pMasini = masini.filter(m =>
+    getMasinaLocation(m)==='Paketshop'
+  ).sort((a,b)=>(a.nr||'').localeCompare(b.nr||''));
   if(!pMasini.length){ paketshopSec.innerHTML=''; return; }
 
   paketshopSec.innerHTML = `
@@ -2829,7 +2829,7 @@ function renderSetari(){
             <option value="Paketshop" ${s.location==='Paketshop'?'selected':''}>Paketshop</option>
           </select>
         </div>
-        <button onclick="removeSofer(${JSON.stringify(s.name)})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0">×</button>
+        <button onclick="removeSofer('${s.name.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:18px;padding:0 4px;line-height:1;flex-shrink:0" title="Șterge șofer">×</button>
       </div>`;
     }).join('')+'</div>';
 }
